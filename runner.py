@@ -16,15 +16,22 @@ from pathlib import Path
 
 import requests
 
-from .pricing import cost_of
-from .tasks import SUITES, SYSTEM_QA, TOOL_SCHEMAS, execute_tool
+from pricing import cost_of
+from tasks import SUITES, SYSTEM_QA, TOOL_SCHEMAS, execute_tool
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # reads .env from current directory by default
+
+
 
 CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_TOOL_ROUNDS = 4
 
 
 def _headers() -> dict:
-    key = os.environ.get("OPENROUTER_API_KEY")
+    key = os.getenv("OPENROUTER_API_KEY")
     if not key:
         raise SystemExit("Set OPENROUTER_API_KEY first.")
     return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}

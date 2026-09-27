@@ -55,7 +55,7 @@ MODELS: list[ModelSpec] = [
         notes="Classic dense decoder; every token touches all 70B params.",
     ),
     ModelSpec(
-        id="qwen/qwen2.5-72b-instruct",
+        id="qwen/qwen2.5-72b-instruct",#qwen/qwen-2.5-72b-instruct
         family="Qwen", ffn="dense", attn="full",
         total_params_b=72, active_params_b=72,
         notes="Dense baseline #2, different lab/training recipe.",
