@@ -20,7 +20,6 @@ from pricing import cost_of
 from tasks import SUITES, SYSTEM_QA, TOOL_SCHEMAS, execute_tool
 
 from dotenv import load_dotenv
-import os
 
 load_dotenv()  # reads .env from current directory by default
 
@@ -96,15 +95,15 @@ def run_one(model_id: str, task, catalog: dict) -> dict:
 
     latency_ms = (time.perf_counter() - start) * 1000
     correct = bool(task.check(final_text)) if error is None else False
-    right_tool = (task.expected_tool in tool_calls_made
-                  if task.expected_tool else None)
+    # right_tool = (task.expected_tool in tool_calls_made
+    #               if task.expected_tool else None)
 
     return {
         "model": model_id,
         "suite": task.suite,
         "task_id": task.id,
         "correct": correct,
-        "used_expected_tool": right_tool,
+        # "used_expected_tool": right_tool,
         "tool_calls": tool_calls_made,
         "api_rounds": rounds,
         "prompt_tokens": usage_total.get("prompt_tokens", 0),
@@ -140,5 +139,5 @@ def run_experiment(model_ids: list[str], catalog: dict, repeats: int = 3,
             print(f"  [{done}/{len(jobs)}] {status} {mark} "
                   f"{model_id.split('/')[-1]:32} {task.id:10} "
                   f"${record['cost_usd']:.5f}")
-            time.sleep(sleep_s)  # be polite; also stays under rate limits
+            time.sleep(sleep_s)
     return out
