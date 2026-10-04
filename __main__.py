@@ -25,5 +25,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
-    # report("./results.jsonl")
+    # main()
+    report("./results.jsonl")

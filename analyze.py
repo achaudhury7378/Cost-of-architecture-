@@ -73,8 +73,8 @@ def arch_summary(table: dict, suite: str | None = None) -> list[dict]:
             continue
         spec = by_id(model)
         arch = spec.arch_label if spec else "?"
-        for k in agg[arch]:
-            agg[(arch,s,e)][k].append(row[k])
+        for k in agg[(arch, s, e)]:
+            agg[(arch, s, e)][k].append(row[k])
     out = []
     for (arch,s,e), cols in agg.items():
         total_cost = float(np.sum(cols["cost"]))
