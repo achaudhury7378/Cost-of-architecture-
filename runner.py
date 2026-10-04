@@ -16,7 +16,6 @@ from pathlib import Path
 
 import requests
 
-from __main__ import EFFORTS
 from pricing import cost_of
 from tasks import SUITES, SYSTEM_QA, TOOL_SCHEMAS, execute_tool
 
@@ -25,7 +24,7 @@ from dotenv import load_dotenv
 load_dotenv()  # reads .env from current directory by default
 
 
-
+EFFORTS = ["xhigh", "medium", "low"]
 CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_TOOL_ROUNDS = 4
 
@@ -46,7 +45,7 @@ def _post(payload: dict) -> dict:
 def _accumulate(total: dict, usage: dict) -> None:
     for k in ("prompt_tokens", "completion_tokens"):
         total[k] = total.get(k, 0) + (usage or {}).get(k, 0)
-    total["reasoning_tokens"] = total["completion_tokens_details"]["reasoning_tokens"]
+    total["reasoning_tokens"] = total.get("completion_tokens_details", {}).get("reasoning_tokens", 0)+ (usage or {}).get("completion_tokens_details", {}).get("reasoning_tokens", 0)
 
 
 def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
@@ -64,7 +63,7 @@ def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
             while rounds < MAX_TOOL_ROUNDS:
                 rounds += 1
                 data = _post({"model": model_id, "messages": messages,
-                              "tools": TOOL_SCHEMAS, "effort": effort})
+                              "tools": TOOL_SCHEMAS, "reasoning": {"effort": effort}, "provider": {"require_parameters": True}})
                 _accumulate(usage_total, data.get("usage", {}))
                 msg = data["choices"][0]["message"]
                 calls = msg.get("tool_calls") or []
@@ -88,7 +87,7 @@ def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
             else:
                 error = "max tool rounds exceeded"
         else:
-            data = _post({"model": model_id, "messages": messages, "effort": effort})
+            data = _post({"model": model_id, "messages": messages, "reasoning": {"effort": effort}, "provider": {"require_parameters": True}})
             _accumulate(usage_total, data.get("usage", {}))
             final_text = data["choices"][0]["message"].get("content") or ""
             rounds = 1
@@ -111,6 +110,7 @@ def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
         "api_rounds": rounds,
         "prompt_tokens": usage_total.get("prompt_tokens", 0),
         "completion_tokens": usage_total.get("completion_tokens", 0),
+        "reasoning_tokens": usage_total.get("reasoning_tokens", 0),
         "cost_usd": cost_of(usage_total, model_id, catalog) if error is None else 0.0,
         "latency_ms": latency_ms,
         "error": error,

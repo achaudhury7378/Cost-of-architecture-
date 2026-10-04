@@ -93,7 +93,7 @@ REASONING = [
          "A tank fills at 12 L/min and drains at 7 L/min through a leak. It "
          "must reach 600 L, but after 40 minutes the leak is fixed. How many "
          "TOTAL minutes from the start until the tank holds 600 L?",
-         _num_check(73)),
+         _num_check(73.33)),
     Task("reason-5", "reasoning",
          "Working alone, Priya paints a room in 6 hours and Raj in 4 hours. "
          "They work together for 1 hour, then Raj leaves. How many MORE hours "

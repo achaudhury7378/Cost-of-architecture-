@@ -15,7 +15,7 @@ import itertools
 import json
 from collections import defaultdict
 from pathlib import Path
-
+import pandas as pd
 
 import numpy as np
 
@@ -25,20 +25,23 @@ RNG = np.random.default_rng(0)
 N_BOOT = 5000
 
 color_map  = colour_lbl_map()
-def create_plotly_table(acc: list[int], cost_per_run: list[float], color_label:list[str], suite:str) -> go.Figure:
+def create_plotly_table(data: list[tuple]) -> go.Figure:
     shape_map = {"easy": "circle", "reasoning": "triangle-up", "tool": "square", "all": "diamond"}
-
+    df = pd.DataFrame(data, columns=["model", "mean_cost", "mean_out_tokens", "suite", "effort"])
+    effort_order = {"low": 0, "medium": 1, "high": 2, "xhigh": 3}
+    df["effort_rank"] = df["effort"].map(effort_order)
     fig = go.Figure()
-    # for lbl in np.unique(color_label):
-    for i in range(len(color_label)):
-        lbl = color_label[i]
+    for (model, suite), g in df.groupby(["model", "suite"]):
+        g = g.sort_values("effort_rank")
+        spec = by_id(model)
+        colour = color_map.get(spec.arch_label if spec else "?", "#000000")
         fig.add_trace(go.Scatter(
-            x=[acc[i]], y=[cost_per_run[i]], mode="markers", name=str(lbl) + f" ({suite})",
-            marker=dict(
-                size=10,
-                symbol=shape_map[suite],
-                color=color_map.get(lbl, "#000000"),  # default to black if label not found
-            ),
+            x=g["mean_out_tokens"], y=g["mean_cost"], mode="lines+markers",
+            name=f"{model.split('/')[-1]} ({suite})",
+            line=dict(color=colour, width=1),
+            marker=dict(size=10, symbol=shape_map[suite], color=colour),
+            text=[f"Model: {model}<br>Suite: {suite}<br>Effort: {e}" for e in g["effort"]],
+            hoverinfo="text",
         ))
     return fig
 
@@ -71,16 +74,16 @@ def arch_summary(table: dict, suite: str | None = None) -> list[dict]:
         spec = by_id(model)
         arch = spec.arch_label if spec else "?"
         for k in agg[arch]:
-            agg[arch][k].append(row[k])
+            agg[(arch,s,e)][k].append(row[k])
     out = []
-    for arch, cols in agg.items():
+    for (arch,s,e), cols in agg.items():
         total_cost = float(np.sum(cols["cost"]))
         mean_acc = float(np.mean(cols["acc"]))
         solved = mean_acc * len(cols["acc"])
-        effor
         out.append({
             "arch": arch,
             "acc": mean_acc,
+            
             "mean_cost": float(np.mean(cols["cost"])),
             "cost_per_solved": total_cost / solved if solved else float("inf"),
             "mean_out_tokens": float(np.mean(cols["out_tokens"])),
@@ -96,16 +99,18 @@ def model_summary(table: dict, suite: str | None = None) -> list[dict]:
     for (model, s, e, _tid), row in table.items():
         if suite and s != suite:
             continue
-        for k in agg[model]:
-            agg[model][k].append(row[k])
+        for k in agg[(model,s,e)]:
+            agg[(model,s,e)][k].append(row[k])
     out = []
-    for model, cols in agg.items():
+    for (model, s, effort), cols in agg.items():
         spec = by_id(model)
         total_cost = float(np.sum(cols["cost"]))
         mean_acc = float(np.mean(cols["acc"]))
         solved = mean_acc * len(cols["acc"])
         out.append({
             "model": model,
+            "effort": effort,
+            "suite": s,
             "arch": spec.arch_label if spec else "?",
             "active_b": spec.active_params_b if spec else None,
             "acc": mean_acc,
@@ -149,15 +154,16 @@ def report(path: str = "results.jsonl") -> None:
     table = per_task_table(records)
     suites = sorted({s for (_m, s, _e, _t) in table})
     figs=[]
-    suite_in =[]
+    plot_data = []
     for suite in suites + [None]:
         label = suite or "ALL SUITES"
         print(f"\n== {label} " + "=" * (70 - len(label)))
-        print(f"{'model':34} {'arch':22} {'acc':>5} {'$/task':>9} "
+        print(f"{'model':34} {'suite':10} {'effort':10} {'arch':22} {'acc':>5} {'$/task':>9} "
               f"{'$/solved':>9} {'out_tok':>8}")
-        for row in model_summary(table, suite):
+        data_out_model = model_summary(table, suite)
+        for row in data_out_model:
             
-            print(f"{row['model'].split('/')[-1]:34} {row['arch']:22} "
+            print(f"{row['model'].split('/')[-1]:34} {row['suite']:10} {row['effort']:10} {row['arch']:22} "
                   f"{row['acc']:>5.0%} {row['mean_cost']:>9.5f} "
                   f"{row['cost_per_solved']:>9.5f} {row['mean_out_tokens']:>8.0f}")
         data_out = arch_summary(table, suite)
@@ -169,16 +175,15 @@ def report(path: str = "results.jsonl") -> None:
                   f"{row['acc']:>5.0%} {row['mean_cost']:>9.5f} "
                   f"{row['cost_per_solved']:>9.5f} {row['mean_out_tokens']:>8.0f}")
         # suite_in.append(suite if suite else 'all')
-        figs.append(create_plotly_table([row['acc'] for row in data_out], [row['cost_per_solved'] for row in data_out], [row['arch'] for row in data_out], suite if suite else 'all'))
+    data_out_model = model_summary(table, None)
+    for row in data_out_model:
+        plot_data.append((row['model'], row['mean_cost'], row['mean_out_tokens'],row['suite'],row['effort']))
 
-    merged = go.Figure()
-    for f in figs:
-        merged.add_traces(f.data)
+    fig = create_plotly_table(plot_data)
 
-    merged.update_layout(figs[0].layout)   # reuse title, axis titles, etc. from the first figure
-    merged.show()
+    fig.show()
 
-    models = sorted({m for (m, _s, _t) in table})
+    models = sorted({m for (m, _s, _e, _t) in table})
     print("\n== Paired cost comparisons (bootstrap 95% CI on per-task delta) ==")
     for a, b in itertools.combinations(models, 2):
         c = paired_cost_compare(table, a, b)
