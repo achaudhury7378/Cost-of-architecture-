@@ -16,7 +16,7 @@ time (see pricing.py), so a delisted ID degrades gracefully instead of
 silently costing the wrong amount.
 """
 
-from collections import defaultdict
+
 from dataclasses import dataclass
 from typing import Optional
 

@@ -16,6 +16,7 @@ from pathlib import Path
 
 import requests
 
+from __main__ import EFFORTS
 from pricing import cost_of
 from tasks import SUITES, SYSTEM_QA, TOOL_SCHEMAS, execute_tool
 
@@ -45,9 +46,10 @@ def _post(payload: dict) -> dict:
 def _accumulate(total: dict, usage: dict) -> None:
     for k in ("prompt_tokens", "completion_tokens"):
         total[k] = total.get(k, 0) + (usage or {}).get(k, 0)
+    total["reasoning_tokens"] = total["completion_tokens_details"]["reasoning_tokens"]
 
 
-def run_one(model_id: str, task, catalog: dict) -> dict:
+def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
     """One repeat of one task on one model. Returns a flat record."""
     messages = [{"role": "system", "content": SYSTEM_QA},
                 {"role": "user", "content": task.prompt}]
@@ -62,7 +64,7 @@ def run_one(model_id: str, task, catalog: dict) -> dict:
             while rounds < MAX_TOOL_ROUNDS:
                 rounds += 1
                 data = _post({"model": model_id, "messages": messages,
-                              "tools": TOOL_SCHEMAS})
+                              "tools": TOOL_SCHEMAS, "effort": effort})
                 _accumulate(usage_total, data.get("usage", {}))
                 msg = data["choices"][0]["message"]
                 calls = msg.get("tool_calls") or []
@@ -86,7 +88,7 @@ def run_one(model_id: str, task, catalog: dict) -> dict:
             else:
                 error = "max tool rounds exceeded"
         else:
-            data = _post({"model": model_id, "messages": messages})
+            data = _post({"model": model_id, "messages": messages, "effort": effort})
             _accumulate(usage_total, data.get("usage", {}))
             final_text = data["choices"][0]["message"].get("content") or ""
             rounds = 1
@@ -103,6 +105,7 @@ def run_one(model_id: str, task, catalog: dict) -> dict:
         "suite": task.suite,
         "task_id": task.id,
         "correct": correct,
+        "effort": effort,
         # "used_expected_tool": right_tool,
         "tool_calls": tool_calls_made,
         "api_rounds": rounds,
@@ -120,17 +123,18 @@ def run_experiment(model_ids: list[str], catalog: dict, repeats: int = 3,
                    out_path: str = "results.jsonl",
                    sleep_s: float = 0.5) -> Path:
     suites = suites or list(SUITES)
-    jobs = [(m, t) for m in model_ids
+    jobs = [(m, e, t) for m in model_ids
             for s in suites for t in SUITES[s]
+            for e in EFFORTS
             for _ in range(repeats)]
     random.seed(seed)
     random.shuffle(jobs)  # blocking against time-varying provider conditions
 
     out = Path(out_path)
     done = 0
-    with out.open("a") as fh:
-        for model_id, task in jobs:
-            record = run_one(model_id, task, catalog)
+    with out.open("w+") as fh:
+        for model_id, effort, task in jobs:
+            record = run_one(model_id, effort, task, catalog)
             fh.write(json.dumps(record) + "\n")
             fh.flush()
             done += 1

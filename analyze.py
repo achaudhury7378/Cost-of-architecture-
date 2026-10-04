@@ -31,14 +31,13 @@ def create_plotly_table(acc: list[int], cost_per_run: list[float], color_label:l
     fig = go.Figure()
     # for lbl in np.unique(color_label):
     for i in range(len(color_label)):
-        # m = color_label == lbl
         lbl = color_label[i]
         fig.add_trace(go.Scatter(
             x=[acc[i]], y=[cost_per_run[i]], mode="markers", name=str(lbl) + f" ({suite})",
             marker=dict(
                 size=10,
                 symbol=shape_map[suite],
-                color=color_map[lbl]
+                color=color_map.get(lbl, "#000000"),  # default to black if label not found
             ),
         ))
     return fig
@@ -52,7 +51,7 @@ def per_task_table(records: list[dict]) -> dict:
     """{(model, suite, task_id): {"cost": mean, "acc": mean, "tokens": mean}}"""
     groups = defaultdict(list)
     for r in records:
-        groups[(r["model"], r["suite"], r["task_id"])].append(r)
+        groups[(r["model"], r["suite"],r['effort'] ,r["task_id"])].append(r)
     table = {}
     for key, rs in groups.items():
         table[key] = {
@@ -66,7 +65,7 @@ def per_task_table(records: list[dict]) -> dict:
 
 def arch_summary(table: dict, suite: str | None = None) -> list[dict]:
     agg = defaultdict(lambda: {"cost": [], "acc": [], "out_tokens": [], "latency": []})
-    for (model, s, _tid), row in table.items():
+    for (model, s, e, _tid), row in table.items():
         if suite and s != suite:
             continue
         spec = by_id(model)
@@ -78,6 +77,7 @@ def arch_summary(table: dict, suite: str | None = None) -> list[dict]:
         total_cost = float(np.sum(cols["cost"]))
         mean_acc = float(np.mean(cols["acc"]))
         solved = mean_acc * len(cols["acc"])
+        effor
         out.append({
             "arch": arch,
             "acc": mean_acc,
@@ -93,7 +93,7 @@ def arch_summary(table: dict, suite: str | None = None) -> list[dict]:
 
 def model_summary(table: dict, suite: str | None = None) -> list[dict]:
     agg = defaultdict(lambda: {"cost": [], "acc": [], "out_tokens": [], "latency": []})
-    for (model, s, _tid), row in table.items():
+    for (model, s, e, _tid), row in table.items():
         if suite and s != suite:
             continue
         for k in agg[model]:
@@ -121,10 +121,10 @@ def paired_cost_compare(table: dict, model_a: str, model_b: str,
                         suite: str | None = None) -> dict | None:
     """Paired bootstrap on per-task cost deltas (a - b), shared tasks only."""
     deltas = []
-    for (model, s, tid), row in table.items():
+    for (model, s, e, tid), row in table.items():
         if model != model_a or (suite and s != suite):
             continue
-        other = table.get((model_b, s, tid))
+        other = table.get((model_b, s, e, tid))
         if other:
             deltas.append(row["cost"] - other["cost"])
     if len(deltas) < 3:
@@ -147,8 +147,9 @@ def report(path: str = "results.jsonl") -> None:
         print("No successful records found.")
         return
     table = per_task_table(records)
-    suites = sorted({s for (_m, s, _t) in table})
+    suites = sorted({s for (_m, s, _e, _t) in table})
     figs=[]
+    suite_in =[]
     for suite in suites + [None]:
         label = suite or "ALL SUITES"
         print(f"\n== {label} " + "=" * (70 - len(label)))
@@ -167,6 +168,7 @@ def report(path: str = "results.jsonl") -> None:
             print(f"{row['arch']:22} "
                   f"{row['acc']:>5.0%} {row['mean_cost']:>9.5f} "
                   f"{row['cost_per_solved']:>9.5f} {row['mean_out_tokens']:>8.0f}")
+        # suite_in.append(suite if suite else 'all')
         figs.append(create_plotly_table([row['acc'] for row in data_out], [row['cost_per_solved'] for row in data_out], [row['arch'] for row in data_out], suite if suite else 'all'))
 
     merged = go.Figure()

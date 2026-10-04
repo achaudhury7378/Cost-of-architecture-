@@ -1,14 +1,13 @@
 from analyze import report
 from registry import MODELS
 from runner import run_experiment
-from tasks import EASY, TOOL
+from tasks import EASY, TOOL, SUITES
 
 REPEATS = 1
 SEED = 42
-SUITES = list({"easy" : EASY, "tool" : TOOL})
 
+EFFORTS = ["xhigh", "medium", "low"]
 def main() -> None:
-    # if args.cmd in ("check", "run"):
     from pricing import fetch_catalog, resolve
     catalog = fetch_catalog()
     ids = [m.id for m in MODELS]
