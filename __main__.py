@@ -1,12 +1,12 @@
 from analyze import report
 from registry import MODELS
 from runner import run_experiment
-from tasks import EASY, TOOL, SUITES
+from tasks import SUITES
 
 REPEATS = 1
 SEED = 42
 
-EFFORTS = ["xhigh", "medium", "low"]
+
 def main() -> None:
     from pricing import fetch_catalog, resolve
     catalog = fetch_catalog()
