@@ -43,6 +43,12 @@ def create_plotly_table(data: list[tuple]) -> go.Figure:
             text=[f"Model: {model}<br>Suite: {suite}<br>Effort: {e}" for e in g["effort"]],
             hoverinfo="text",
         ))
+    fig.update_layout(
+        title="Cost vs output tokens by model, suite and effort",
+        xaxis_title="Mean output tokens per task",
+        yaxis_title="Mean cost per task (USD)",
+        legend_title="Model (suite)",
+    )
     return fig
 
 def load(path: str = "results.jsonl") -> list[dict]:
