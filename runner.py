@@ -24,10 +24,12 @@ from dotenv import load_dotenv
 load_dotenv()  # reads .env from current directory by default
 
 
-EFFORTS = ["xhigh", "medium", "low"]
+EFFORTS = [True, False]  # True = "high" reasoning effort, False = "low"
 CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_TOOL_ROUNDS = 4
 
+def _reasoning(effort: bool) -> dict:
+    return {"enabled": bool(effort)}
 
 def _headers() -> dict:
     key = os.getenv("OPENROUTER_API_KEY")
@@ -45,8 +47,8 @@ def _post(payload: dict) -> dict:
 def _accumulate(total: dict, usage: dict) -> None:
     for k in ("prompt_tokens", "completion_tokens"):
         total[k] = total.get(k, 0) + (usage or {}).get(k, 0)
-    total["reasoning_tokens"] = total.get("completion_tokens_details", {}).get("reasoning_tokens", 0)+ (usage or {}).get("completion_tokens_details", {}).get("reasoning_tokens", 0)
-
+    details = usage.get("completion_tokens_details") or {}
+    total["reasoning_tokens"] = total.get("reasoning_tokens", 0) + (details.get("reasoning_tokens") or 0)
 
 def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
     """One repeat of one task on one model. Returns a flat record."""
@@ -63,7 +65,7 @@ def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
             while rounds < MAX_TOOL_ROUNDS:
                 rounds += 1
                 data = _post({"model": model_id, "messages": messages,
-                              "tools": TOOL_SCHEMAS, "reasoning": {"effort": effort}, "provider": {"require_parameters": True}})
+                              "tools": TOOL_SCHEMAS, "reasoning":  _reasoning(effort), "provider": {"require_parameters": True}})
                 _accumulate(usage_total, data.get("usage", {}))
                 msg = data["choices"][0]["message"]
                 calls = msg.get("tool_calls") or []
@@ -87,7 +89,7 @@ def run_one(model_id: str, effort: str, task, catalog: dict) -> dict:
             else:
                 error = "max tool rounds exceeded"
         else:
-            data = _post({"model": model_id, "messages": messages, "reasoning": {"effort": effort}, "provider": {"require_parameters": True}})
+            data = _post({"model": model_id, "messages": messages, "reasoning": _reasoning(effort), "provider": {"require_parameters": True}})
             _accumulate(usage_total, data.get("usage", {}))
             final_text = data["choices"][0]["message"].get("content") or ""
             rounds = 1

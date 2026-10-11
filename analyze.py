@@ -25,6 +25,28 @@ RNG = np.random.default_rng(0)
 N_BOOT = 5000
 
 color_map  = colour_lbl_map()
+print(f"Color map: {color_map}")
+
+color_map  = colour_lbl_map()
+
+def create_plotly_table_acc(acc: list[int], cost_per_run: list[float], suite:str) -> go.Figure:
+    shape_map = {"easy": "circle", "reasoning": "triangle-up", "tool": "square", "all": "diamond"}
+
+    fig = go.Figure()
+    # for lbl in np.unique(color_label):
+    for i in range(len(color_label)):
+        # m = color_label == lbl
+        lbl = color_label[i]
+        fig.add_trace(go.Scatter(
+            x=[acc[i]], y=[cost_per_run[i]], mode="markers", name=str(lbl) + f" ({suite})",
+            marker=dict(
+                size=10,
+                symbol=shape_map[suite],
+                color=color_map[lbl]
+            ),
+        ))
+    return fig
+
 def create_plotly_table(data: list[tuple]) -> go.Figure:
     shape_map = {"easy": "circle", "reasoning": "triangle-up", "tool": "square", "all": "diamond"}
     df = pd.DataFrame(data, columns=["model", "mean_cost", "mean_out_tokens", "suite", "effort"])
@@ -34,7 +56,7 @@ def create_plotly_table(data: list[tuple]) -> go.Figure:
     for (model, suite), g in df.groupby(["model", "suite"]):
         g = g.sort_values("effort_rank")
         spec = by_id(model)
-        colour = color_map.get(spec.arch_label if spec else "?", "#000000")
+        colour = color_map.get(spec.id if spec else "?", "#000000")
         fig.add_trace(go.Scatter(
             x=g["mean_out_tokens"], y=g["mean_cost"], mode="lines+markers",
             name=f"{model.split('/')[-1]} ({suite})",
@@ -188,6 +210,8 @@ def report(path: str = "results.jsonl") -> None:
     fig = create_plotly_table(plot_data)
 
     fig.show()
+
+    create_plotly_table_acc
 
     models = sorted({m for (m, _s, _e, _t) in table})
     print("\n== Paired cost comparisons (bootstrap 95% CI on per-task delta) ==")

@@ -17,6 +17,7 @@ silently costing the wrong amount.
 """
 
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional
 
@@ -104,21 +105,18 @@ MODELS: list[ModelSpec] = [
     #     total_params_b=671, active_params_b=37,
     #     notes="DeepSeek Sparse Attention (DSA); supports tool calling.",
     # ),
-    ModelSpec(
-        id="qwen/qwen3.8-27b",
-        family="Qwen", ffn="dense", attn="hybrid-linear",
-        total_params_b=27, active_params_b=27, verified=True,
-        notes="64 layers: 16 x (3 Gated DeltaNet + 1 Gated Attention [24Q/4KV GQA]); "
-              "dense FFN; 262K native ctx. Source: HF model card.",
-    ),
-    ModelSpec(
-        id="qwen/qwen3.8-2.4t-a95b",
-        family="Qwen", ffn="moe", attn="hybrid-linear",
-        total_params_b=2400, active_params_b=95, verified=True,
-        notes="92 layers: 23 x (3 Gated DeltaNet + 1 Gated Attention [64Q/4KV GQA]); "
-              "512 experts, 10 routed + 1 shared. Thinking mandatory "
-              "(effort low/medium/xhigh). Source: HF model card.",
-    ),
+    ModelSpec(id="qwen/qwen3.5-9b", family="Qwen", ffn="dense", attn="hybrid-linear",
+              total_params_b=9, active_params_b=9, verified=True,
+              notes="32L: 8x(3 DeltaNet+1 GatedAttn 16Q/4KV), hidden 4096. Active-matched to 122B-A10B."),
+    ModelSpec(id="qwen/qwen3.5-27b", family="Qwen", ffn="dense", attn="hybrid-linear",
+              total_params_b=27, active_params_b=27, verified=True,
+              notes="64L: 16x(3 DeltaNet+1 GatedAttn 24Q/4KV), hidden 5120. Total-matched to 35B-A3B."),
+    ModelSpec(id="qwen/qwen3.5-35b-a3b", family="Qwen", ffn="moe", attn="hybrid-linear",
+              total_params_b=35, active_params_b=3, verified=True,
+              notes="40L: 10x(3 DeltaNet+1 GatedAttn 16Q/2KV), hidden 2048; 256 experts, 8 routed+1 shared."),
+    ModelSpec(id="qwen/qwen3.5-122b-a10b", family="Qwen", ffn="moe", attn="hybrid-linear",
+              total_params_b=122, active_params_b=10, verified=True,
+              notes="48L: 12x(3 DeltaNet+1 GatedAttn 32Q/2KV), hidden 3072; 256 experts, 8 routed+1 shared."),
 ]
 
 
@@ -138,9 +136,17 @@ SHADE = {"full": 1, "local-global": 3, "sparse": 2,"hybrid-linear": 0}
 
 def colour_lbl_map() -> dict[str, str]:
     color_map = {}
+    c_d = 0
+    c_m = 0
     for  m in MODELS:
         if m.arch_label not in color_map:
-            color_map[m.arch_label] = HUES[m.ffn][SHADE[m.attn]]
+            if m.ffn == "dense":
+                color_map[m.id] = HUES[m.ffn][c_d]
+                c_d = c_d + 1
+            else:
+                color_map[m.id] = HUES[m.ffn][c_m]
+                c_m = c_m + 1
+
     return color_map
             
 
